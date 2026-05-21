@@ -1,0 +1,287 @@
+import React, { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { useDropzone } from 'react-dropzone'
+import {
+  Upload, FileText, Zap, BookOpen, Brain,
+  BarChart2, ChevronRight, CheckCircle, Layers, MessageSquare,
+  Trophy, Flame, Star, ClipboardList
+} from 'lucide-react'
+import axios from 'axios'
+import { useApp } from '../App'
+import AgentStatus from './AgentStatus'
+import API from '../config/api'
+
+const STAT_CONFIG = [
+  { label: 'Topics Detected',  icon: FileText,   grad: 'from-violet-600 to-purple-700', glow: 'shadow-purple-500/20'  },
+  { label: 'Study Days',       icon: BookOpen,   grad: 'from-cyan-500 to-sky-700',      glow: 'shadow-cyan-500/20'    },
+  { label: 'Quizzes Taken',    icon: Brain,      grad: 'from-green-500 to-emerald-700', glow: 'shadow-green-500/20'   },
+  { label: 'Weak Areas',       icon: BarChart2,  grad: 'from-amber-500 to-orange-700',  glow: 'shadow-amber-500/20'   },
+]
+
+const QUICK_ACTIONS = [
+  { label: 'Generate Study Plan', desc: 'AI-powered day-by-day schedule',       icon: BookOpen,      to: '/study-plan', grad: 'from-violet-600 to-purple-700' },
+  { label: 'Start Quiz',          desc: 'Adaptive MCQs with AI explanations',   icon: Brain,         to: '/quiz',       grad: 'from-cyan-500 to-blue-700'     },
+  { label: 'Exam Mode',           desc: 'Timed full exam — test your limits',    icon: ClipboardList, to: '/exam',       grad: 'from-red-600 to-rose-700'      },
+  { label: 'AI Flashcards',       desc: 'Spaced repetition for max retention',  icon: Layers,        to: '/flashcards', grad: 'from-indigo-500 to-violet-700' },
+]
+
+export default function Dashboard() {
+  const navigate = useNavigate()
+  const {
+    uploadedTopics, setUploadedTopics,
+    currentStudyPlan, performanceHistory, weakAreas, setAgent,
+    xp, streak, levelInfo, progressPercent, nextLevel, addXP,
+  } = useApp()
+  const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [docSummary, setDocSummary]     = useState('')
+
+  const ALLOWED_EXTS = ['.pdf', '.txt', '.docx', '.doc']
+  const isAllowed = (name) => ALLOWED_EXTS.some(ext => name.toLowerCase().endsWith(ext))
+
+  const onDrop = useCallback(async (acceptedFiles) => {
+    const file = acceptedFiles[0]
+    if (!file) return
+    if (!isAllowed(file.name)) {
+      setUploadError('Only PDF, TXT, and DOCX files are supported.')
+      return
+    }
+
+    setUploading(true); setUploadError(''); setUploadSuccess(false); setDocSummary('')
+    setAgent('research', 'active'); setAgent('planner', 'active')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await axios.post(`${API}/upload`, formData)
+      setUploadedTopics(res.data.topics || [])
+      if (res.data.summary) setDocSummary(res.data.summary)
+      setUploadSuccess(true)
+      addXP('UPLOAD_PDF')
+    } catch (err) {
+      setUploadError(err.response?.data?.detail || 'Upload failed. Make sure the backend is running.')
+    } finally {
+      setUploading(false); setAgent('research', 'idle'); setAgent('planner', 'idle')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUploadedTopics, setAgent, addXP])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'text/plain': ['.txt'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/msword': ['.doc'],
+    },
+    maxFiles: 1,
+  })
+
+  const statValues = [
+    uploadedTopics.length,
+    currentStudyPlan ? currentStudyPlan.length : 0,
+    performanceHistory.length,
+    weakAreas.length,
+  ]
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+
+      {/* ── Hero heading ────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity:0, y:-16 }} animate={{ opacity:1, y:0 }} className="mb-8">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center glow-purple">
+            <Zap size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black gradient-text leading-tight">EduAgent Pro</h1>
+            <p className="text-slate-500 text-sm">Your AI Study Command Center</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Gamification bar ─────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.05 }}
+        className="glass-card p-5 mb-6"
+      >
+        <div className="flex items-center gap-6 flex-wrap">
+          {/* Level */}
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${levelInfo.bg} flex items-center justify-center shadow-lg`}>
+              <Trophy size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-base leading-none">{levelInfo.title}</p>
+              <p className="text-slate-500 text-xs mt-0.5">Level {levelInfo.level}</p>
+            </div>
+          </div>
+
+          {/* XP bar */}
+          <div className="flex-1 min-w-32">
+            <div className="flex justify-between mb-1.5">
+              <span className="text-slate-400 text-xs">{xp} XP</span>
+              {nextLevel && <span className="text-slate-600 text-xs">Next: {nextLevel.minXP} XP</span>}
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full bg-gradient-to-r ${levelInfo.bg}`}
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+
+          {/* Streak */}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20">
+            <Flame size={16} className="text-orange-400" />
+            <div>
+              <p className="text-orange-300 font-bold text-base leading-none">{streak}</p>
+              <p className="text-slate-500 text-xs">day streak</p>
+            </div>
+          </div>
+
+          {/* XP chip */}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+            <Star size={14} className="text-yellow-400" />
+            <span className="text-yellow-300 font-bold text-sm">{xp} XP</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Stat cards ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {STAT_CONFIG.map(({ label, icon: Icon, grad, glow }, i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: i * 0.08 + 0.1 }}
+            className={`glass-card shimmer p-5 hover:scale-[1.04] transition-all duration-200 shadow-lg ${glow}`}
+          >
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center mb-4 shadow-md`}>
+              <Icon size={16} className="text-white" />
+            </div>
+            <div className="text-3xl font-black text-white tabular-nums">{statValues[i]}</div>
+            <div className="text-xs text-slate-500 mt-1 font-medium">{label}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* ── Upload zone ─────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.25 }}
+        className="glass-card p-6 mb-8"
+      >
+        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+          <Upload size={16} className="text-purple-400" />
+          Upload Syllabus / Notes
+          <span className="ml-auto tag tag-purple">+50 XP</span>
+        </h2>
+        <p className="text-slate-500 text-xs mb-4">Supports PDF, TXT, and DOCX — upload your notes, syllabus, or study material</p>
+
+        <div
+          {...getRootProps()}
+          className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 overflow-hidden ${
+            isDragActive
+              ? 'border-purple-500 bg-purple-600/10 scale-[1.01]'
+              : 'border-purple-600/25 hover:border-purple-500/55 hover:bg-purple-600/5'
+          }`}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-cyan-600/5 opacity-0 hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
+          <input {...getInputProps()} />
+
+          {uploading ? (
+            <div className="space-y-4">
+              <div className="flex justify-center gap-2">
+                <div className="thinking-dot w-3.5 h-3.5 rounded-full bg-purple-400" />
+                <div className="thinking-dot w-3.5 h-3.5 rounded-full bg-cyan-400" />
+                <div className="thinking-dot w-3.5 h-3.5 rounded-full bg-purple-400" />
+              </div>
+              <p className="text-purple-300 font-semibold">Agents analysing your syllabus...</p>
+              <p className="text-slate-500 text-sm">Extracting topics and building knowledge base</p>
+            </div>
+          ) : uploadSuccess ? (
+            <div className="space-y-2">
+              <CheckCircle size={44} className="text-green-400 mx-auto" />
+              <p className="text-green-300 font-semibold">Successfully processed!</p>
+              <p className="text-slate-500 text-sm">Drop another file to replace</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-purple-600/15 border border-purple-600/25 flex items-center justify-center mx-auto">
+                <Upload size={24} className="text-purple-400" />
+              </div>
+              <p className="text-slate-300 font-medium">
+                {isDragActive ? 'Drop it here!' : 'Drag & drop your file here'}
+              </p>
+              <p className="text-slate-600 text-sm">or click to browse</p>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <span className="tag tag-purple">PDF</span>
+                <span className="tag tag-purple">TXT</span>
+                <span className="tag tag-purple">DOCX</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {uploadError && <p className="mt-3 text-red-400 text-sm text-center">{uploadError}</p>}
+
+        {docSummary && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className="mt-5 p-4 rounded-xl bg-cyan-500/8 border border-cyan-500/20"
+          >
+            <p className="text-xs font-semibold text-cyan-400 mb-1 uppercase tracking-wider">Document Summary</p>
+            <p className="text-slate-300 text-sm leading-relaxed">{docSummary}</p>
+          </motion.div>
+        )}
+
+        {uploadedTopics.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm text-slate-400 mb-3">
+              <span className="text-purple-400 font-bold">{uploadedTopics.length}</span> topics detected:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {uploadedTopics.map((topic) => (
+                <span key={topic} className="tag tag-purple">{topic}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── Agent status ────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.35 }}
+        className="mb-8"
+      >
+        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-purple-400 pulse-dot" />
+          Agent Status
+        </h2>
+        <AgentStatus />
+      </motion.div>
+
+      {/* ── Quick actions ────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.45 }}>
+        <h2 className="text-base font-semibold text-white mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {QUICK_ACTIONS.map(({ label, desc, icon: Icon, to, grad }) => (
+            <button
+              key={to}
+              onClick={() => navigate(to)}
+              className="glass-card shimmer p-5 text-left hover:scale-[1.04] transition-all duration-200 group"
+            >
+              <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${grad} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                <Icon size={17} className="text-white" />
+              </div>
+              <p className="text-white font-semibold text-sm leading-snug">{label}</p>
+              <p className="text-slate-500 text-xs mt-1 leading-relaxed">{desc}</p>
+              <ChevronRight size={13} className="text-purple-400 mt-3 group-hover:translate-x-1 transition-transform" />
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
