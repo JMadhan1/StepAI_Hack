@@ -12,7 +12,7 @@
 [![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-step--ai--hack.vercel.app-6366f1?style=for-the-badge&labelColor=1e1b4b)](https://step-ai-hack.vercel.app)
 [![Backend API](https://img.shields.io/badge/⚡%20Backend%20API-eduaiagent.vercel.app-0891b2?style=for-the-badge&labelColor=0c2340)](https://eduaiagent.vercel.app/health)
 [![GitHub](https://img.shields.io/badge/📦%20Source%20Code-JMadhan1%2FStepAI__Hack-24292e?style=for-the-badge&logo=github)](https://github.com/JMadhan1/StepAI_Hack)
-[![Demo Video](https://img.shields.io/badge/▶%20Demo%20Video-YouTube-ff0000?style=for-the-badge&logo=youtube)](YOUR_YOUTUBE_LINK_HERE)
+[![Demo Video](https://img.shields.io/badge/▶%20Demo%20Video-YouTube-ff0000?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=uMuyyE-Y7Rg)
 
 </div>
 
@@ -42,9 +42,9 @@ The platform covers the full student learning lifecycle:
 
 ## 🎬 Demo Video
 
-[![Demo Video](https://img.shields.io/badge/Watch%20Full%20Demo-YouTube-red?style=for-the-badge&logo=youtube)](YOUR_YOUTUBE_LINK_HERE)
+[![Demo Video](https://img.shields.io/badge/Watch%20Full%20Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=uMuyyE-Y7Rg)
 
-> 📌 **Video link will be updated after recording. Placeholder above.**
+> 📌 **Full 7-minute walkthrough — live demo, features, and backend architecture explained.**
 
 **Live Application:** https://step-ai-hack.vercel.app
 
