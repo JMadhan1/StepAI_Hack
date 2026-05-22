@@ -1,30 +1,51 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import {
   Upload, FileText, Zap, BookOpen, Brain,
-  BarChart2, ChevronRight, CheckCircle, Layers, MessageSquare,
-  Trophy, Flame, Star, ClipboardList
+  BarChart2, ChevronRight, CheckCircle, Layers, ClipboardList,
+  Trophy, Flame, Star, Target, GitBranch, X, ArrowRight,
+  BookMarked, TrendingUp,
 } from 'lucide-react'
 import axios from 'axios'
 import { useApp } from '../App'
 import AgentStatus from './AgentStatus'
+import ConceptMap from './ConceptMap'
 import API from '../config/api'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const STAT_CONFIG = [
-  { label: 'Topics Detected',  icon: FileText,   grad: 'from-violet-600 to-purple-700', glow: 'shadow-purple-500/20'  },
-  { label: 'Study Days',       icon: BookOpen,   grad: 'from-cyan-500 to-sky-700',      glow: 'shadow-cyan-500/20'    },
-  { label: 'Quizzes Taken',    icon: Brain,      grad: 'from-green-500 to-emerald-700', glow: 'shadow-green-500/20'   },
-  { label: 'Weak Areas',       icon: BarChart2,  grad: 'from-amber-500 to-orange-700',  glow: 'shadow-amber-500/20'   },
+  { label: 'Topics Detected', icon: FileText,   grad: 'from-violet-600 to-purple-700', glow: 'shadow-purple-500/20' },
+  { label: 'Study Days',      icon: BookOpen,   grad: 'from-cyan-500 to-sky-700',      glow: 'shadow-cyan-500/20'   },
+  { label: 'Quizzes Taken',   icon: Brain,      grad: 'from-green-500 to-emerald-700', glow: 'shadow-green-500/20'  },
+  { label: 'Weak Areas',      icon: BarChart2,  grad: 'from-amber-500 to-orange-700',  glow: 'shadow-amber-500/20'  },
 ]
 
 const QUICK_ACTIONS = [
-  { label: 'Generate Study Plan', desc: 'AI-powered day-by-day schedule',       icon: BookOpen,      to: '/study-plan', grad: 'from-violet-600 to-purple-700' },
-  { label: 'Start Quiz',          desc: 'Adaptive MCQs with AI explanations',   icon: Brain,         to: '/quiz',       grad: 'from-cyan-500 to-blue-700'     },
-  { label: 'Exam Mode',           desc: 'Timed full exam — test your limits',    icon: ClipboardList, to: '/exam',       grad: 'from-red-600 to-rose-700'      },
-  { label: 'AI Flashcards',       desc: 'Spaced repetition for max retention',  icon: Layers,        to: '/flashcards', grad: 'from-indigo-500 to-violet-700' },
+  { label: 'Generate Study Plan', desc: 'AI-powered day-by-day schedule',      icon: BookOpen,      to: '/study-plan', grad: 'from-violet-600 to-purple-700' },
+  { label: 'Start Quiz',          desc: 'Adaptive MCQs with AI explanations',  icon: Brain,         to: '/quiz',       grad: 'from-cyan-500 to-blue-700'     },
+  { label: 'Exam Mode',           desc: 'Timed full exam — test your limits',   icon: ClipboardList, to: '/exam',       grad: 'from-red-600 to-rose-700'      },
+  { label: 'AI Flashcards',       desc: 'Spaced repetition for max retention', icon: Layers,        to: '/flashcards', grad: 'from-indigo-500 to-violet-700' },
 ]
+
+const ONBOARDING_STEPS = [
+  { key: 'upload', icon: Upload,      label: 'Upload your notes',      desc: 'Drop a PDF, TXT, or DOCX to get started' },
+  { key: 'quiz',   icon: Brain,       label: 'Take your first quiz',   desc: 'Test yourself on any topic'              },
+  { key: 'plan',   icon: BookMarked,  label: 'Generate a study plan',  desc: 'Build a day-by-day exam schedule'        },
+]
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function readinessColor(score) {
+  if (score >= 80) return { stroke: '#22c55e', label: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20'  }
+  if (score >= 60) return { stroke: '#3b82f6', label: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20'   }
+  if (score >= 40) return { stroke: '#f97316', label: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' }
+  return              { stroke: '#ef4444', label: 'text-rose-400',   bg: 'bg-rose-500/10',   border: 'border-rose-500/20'   }
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -33,32 +54,82 @@ export default function Dashboard() {
     currentStudyPlan, performanceHistory, weakAreas, setAgent,
     xp, streak, levelInfo, progressPercent, nextLevel, addXP,
   } = useApp()
-  const [uploading, setUploading]       = useState(false)
-  const [uploadError, setUploadError]   = useState('')
+
+  // Upload state
+  const [uploading, setUploading]         = useState(false)
+  const [uploadError, setUploadError]     = useState('')
   const [uploadSuccess, setUploadSuccess] = useState(false)
-  const [docSummary, setDocSummary]     = useState('')
+  const [docSummary, setDocSummary]       = useState('')
 
-  const ALLOWED_EXTS = ['.pdf', '.txt', '.docx', '.doc']
-  const isAllowed = (name) => ALLOWED_EXTS.some(ext => name.toLowerCase().endsWith(ext))
+  // Concept map state (Plan A)
+  const [cmNodes, setCmNodes]       = useState([])
+  const [cmEdges, setCmEdges]       = useState([])
+  const [cmLoading, setCmLoading]   = useState(false)
 
-  const onDrop = useCallback(async (acceptedFiles) => {
-    const file = acceptedFiles[0]
+  // Onboarding state (Plan B)
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => localStorage.getItem('eduagent_onboarding') === '1'
+  )
+  const dismissOnboarding = () => {
+    localStorage.setItem('eduagent_onboarding', '1')
+    setOnboardingDone(true)
+  }
+
+  // ── Exam readiness (Plan C) ─────────────────────────────────────────────
+  const examReadiness = useMemo(() => {
+    if (!performanceHistory.length) return 0
+    const quizAvg = performanceHistory.reduce((s, h) => s + (h.percentage || 0), 0) / performanceHistory.length
+    const topicBonus = Math.min(15, uploadedTopics.length * 1.5)
+    const volumeBonus = Math.min(10, performanceHistory.length * 2)
+    return Math.min(95, Math.round(quizAvg * 0.75 + topicBonus + volumeBonus))
+  }, [performanceHistory, uploadedTopics])
+
+  const rColor = readinessColor(examReadiness)
+  const ringR = 44
+  const ringCirc = 2 * Math.PI * ringR
+  const ringOffset = ringCirc - (examReadiness / 100) * ringCirc
+
+  // ── Onboarding step states ──────────────────────────────────────────────
+  const stepDone = {
+    upload: uploadedTopics.length > 0,
+    quiz:   performanceHistory.length > 0,
+    plan:   currentStudyPlan !== null,
+  }
+  const allStepsDone = Object.values(stepDone).every(Boolean)
+
+  // ── File upload handler ─────────────────────────────────────────────────
+  const ALLOWED = ['.pdf', '.txt', '.docx', '.doc']
+  const isAllowed = (name) => ALLOWED.some(e => name.toLowerCase().endsWith(e))
+
+  const onDrop = useCallback(async (accepted) => {
+    const file = accepted[0]
     if (!file) return
     if (!isAllowed(file.name)) {
       setUploadError('Only PDF, TXT, and DOCX files are supported.')
       return
     }
-
-    setUploading(true); setUploadError(''); setUploadSuccess(false); setDocSummary('')
+    setUploading(true); setUploadError(''); setUploadSuccess(false)
+    setDocSummary(''); setCmNodes([]); setCmEdges([])
     setAgent('research', 'active'); setAgent('planner', 'active')
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await axios.post(`${API}/upload`, formData)
-      setUploadedTopics(res.data.topics || [])
+      const form = new FormData()
+      form.append('file', file)
+      const res = await axios.post(`${API}/upload`, form)
+      const topics = res.data.topics || []
+      setUploadedTopics(topics)
       if (res.data.summary) setDocSummary(res.data.summary)
       setUploadSuccess(true)
       addXP('UPLOAD_PDF')
+
+      // Generate concept map in background (Plan A)
+      if (topics.length >= 2) {
+        setCmLoading(true)
+        axios.post(`${API}/concept-map`, { topics, filename: res.data.file_name || file.name })
+          .then(r => { setCmNodes(r.data.nodes || []); setCmEdges(r.data.edges || []) })
+          .catch(() => {})
+          .finally(() => setCmLoading(false))
+      }
     } catch (err) {
       setUploadError(err.response?.data?.detail || 'Upload failed. Make sure the backend is running.')
     } finally {
@@ -85,12 +156,13 @@ export default function Dashboard() {
     weakAreas.length,
   ]
 
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="p-8 max-w-6xl mx-auto animate-fade-in">
 
-      {/* ── Hero heading ────────────────────────────────────────────────── */}
-      <motion.div initial={{ opacity:0, y:-16 }} animate={{ opacity:1, y:0 }} className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center glow-purple">
             <Zap size={20} className="text-white" />
           </div>
@@ -101,11 +173,69 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ── Gamification bar ─────────────────────────────────────────────── */}
-      <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.05 }}
+      {/* ── Plan B: Onboarding guide ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {!onboardingDone && !allStepsDone && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -8, height: 0 }}
+            transition={{ duration: 0.35 }}
+            className="glass-card p-5 mb-6 border border-purple-500/20 overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Target size={16} className="text-purple-400" />
+                <p className="text-white font-semibold text-sm">Get started in 3 steps</p>
+              </div>
+              <button
+                onClick={dismissOnboarding}
+                className="text-slate-500 hover:text-slate-300 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {ONBOARDING_STEPS.map((step, i) => {
+                const done = stepDone[step.key]
+                const Icon = step.icon
+                return (
+                  <div
+                    key={step.key}
+                    className={`rounded-xl p-3 border transition-all ${
+                      done
+                        ? 'bg-green-500/8 border-green-500/25'
+                        : 'bg-white/3 border-white/8'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        done ? 'bg-green-500 text-white' : 'bg-white/10 text-slate-400'
+                      }`}>
+                        {done ? <CheckCircle size={13} /> : i + 1}
+                      </div>
+                      <Icon size={13} className={done ? 'text-green-400' : 'text-slate-400'} />
+                    </div>
+                    <p className={`text-xs font-semibold leading-snug ${done ? 'text-green-300' : 'text-slate-300'}`}>
+                      {step.label}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">{step.desc}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Plan C: Gamification + Exam Readiness ───────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="glass-card p-5 mb-6"
       >
         <div className="flex items-center gap-6 flex-wrap">
+
           {/* Level */}
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${levelInfo.bg} flex items-center justify-center shadow-lg`}>
@@ -147,6 +277,50 @@ export default function Dashboard() {
             <Star size={14} className="text-yellow-400" />
             <span className="text-yellow-300 font-bold text-sm">{xp} XP</span>
           </div>
+
+          {/* Divider */}
+          <div className="hidden md:block w-px h-10 bg-white/10" />
+
+          {/* Exam Readiness Ring */}
+          <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border ${rColor.bg} ${rColor.border}`}>
+            <svg width="56" height="56" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="rGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={rColor.stroke} stopOpacity="0.6" />
+                  <stop offset="100%" stopColor={rColor.stroke} />
+                </linearGradient>
+              </defs>
+              {/* Track */}
+              <circle cx="50" cy="50" r={ringR} fill="none" stroke="#1e293b" strokeWidth="9" />
+              {/* Progress */}
+              <motion.circle
+                cx="50" cy="50" r={ringR}
+                fill="none"
+                stroke="url(#rGrad)"
+                strokeWidth="9"
+                strokeLinecap="round"
+                strokeDasharray={ringCirc}
+                initial={{ strokeDashoffset: ringCirc }}
+                animate={{ strokeDashoffset: ringOffset }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
+                transform="rotate(-90 50 50)"
+              />
+              <text x="50" y="50" textAnchor="middle" dominantBaseline="middle"
+                fontSize="20" fontWeight="800" fill="white">
+                {examReadiness}
+              </text>
+            </svg>
+            <div>
+              <p className={`text-xs font-semibold ${rColor.label} uppercase tracking-wider`}>
+                Exam Ready
+              </p>
+              <p className="text-slate-300 font-bold text-lg leading-none">{examReadiness}%</p>
+              <p className="text-slate-500 text-xs mt-0.5">
+                {examReadiness === 0 ? 'Take a quiz to score' : examReadiness >= 80 ? 'Great shape!' : 'Keep practising'}
+              </p>
+            </div>
+          </div>
+
         </div>
       </motion.div>
 
@@ -155,7 +329,7 @@ export default function Dashboard() {
         {STAT_CONFIG.map(({ label, icon: Icon, grad, glow }, i) => (
           <motion.div
             key={label}
-            initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: i * 0.08 + 0.1 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 + 0.1 }}
             className={`glass-card shimmer p-5 hover:scale-[1.04] transition-all duration-200 shadow-lg ${glow}`}
           >
             <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center mb-4 shadow-md`}>
@@ -169,10 +343,10 @@ export default function Dashboard() {
 
       {/* ── Upload zone ─────────────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.25 }}
-        className="glass-card p-6 mb-8"
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+        className="glass-card p-6 mb-6"
       >
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-base font-semibold text-white mb-1 flex items-center gap-2">
           <Upload size={16} className="text-purple-400" />
           Upload Syllabus / Notes
           <span className="ml-auto tag tag-purple">+50 XP</span>
@@ -197,8 +371,8 @@ export default function Dashboard() {
                 <div className="thinking-dot w-3.5 h-3.5 rounded-full bg-cyan-400" />
                 <div className="thinking-dot w-3.5 h-3.5 rounded-full bg-purple-400" />
               </div>
-              <p className="text-purple-300 font-semibold">Agents analysing your syllabus...</p>
-              <p className="text-slate-500 text-sm">Extracting topics and building knowledge base</p>
+              <p className="text-purple-300 font-semibold">Agents analysing your file…</p>
+              <p className="text-slate-500 text-sm">Extracting topics, building semantic index and document summary</p>
             </div>
           ) : uploadSuccess ? (
             <div className="space-y-2">
@@ -215,7 +389,7 @@ export default function Dashboard() {
                 {isDragActive ? 'Drop it here!' : 'Drag & drop your file here'}
               </p>
               <p className="text-slate-600 text-sm">or click to browse</p>
-              <div className="flex gap-2 justify-center flex-wrap">
+              <div className="flex gap-2 justify-center">
                 <span className="tag tag-purple">PDF</span>
                 <span className="tag tag-purple">TXT</span>
                 <span className="tag tag-purple">DOCX</span>
@@ -226,16 +400,22 @@ export default function Dashboard() {
 
         {uploadError && <p className="mt-3 text-red-400 text-sm text-center">{uploadError}</p>}
 
-        {docSummary && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-5 p-4 rounded-xl bg-cyan-500/8 border border-cyan-500/20"
-          >
-            <p className="text-xs font-semibold text-cyan-400 mb-1 uppercase tracking-wider">Document Summary</p>
-            <p className="text-slate-300 text-sm leading-relaxed">{docSummary}</p>
-          </motion.div>
-        )}
+        {/* Document summary */}
+        <AnimatePresence>
+          {docSummary && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="mt-5 p-4 rounded-xl bg-cyan-500/8 border border-cyan-500/20"
+            >
+              <p className="text-xs font-semibold text-cyan-400 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                <TrendingUp size={11} /> Document Summary
+              </p>
+              <p className="text-slate-300 text-sm leading-relaxed">{docSummary}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
+        {/* Topics */}
         {uploadedTopics.length > 0 && (
           <div className="mt-4">
             <p className="text-sm text-slate-400 mb-3">
@@ -243,16 +423,35 @@ export default function Dashboard() {
             </p>
             <div className="flex flex-wrap gap-2">
               {uploadedTopics.map((topic) => (
-                <span key={topic} className="tag tag-purple">{topic}</span>
+                <button
+                  key={topic}
+                  onClick={() => navigate('/quiz')}
+                  className="tag tag-purple hover:bg-purple-500/25 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  {topic}
+                  <ArrowRight size={10} className="opacity-60" />
+                </button>
               ))}
             </div>
+            <p className="text-slate-600 text-xs mt-2">Click a topic to start a quiz</p>
           </div>
         )}
       </motion.div>
 
-      {/* ── Agent status ────────────────────────────────────────────────── */}
+      {/* ── Plan A: Concept Map ──────────────────────────────────────────── */}
+      {(cmLoading || cmNodes.length >= 2) && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <ConceptMap nodes={cmNodes} edges={cmEdges} loading={cmLoading} />
+        </motion.div>
+      )}
+
+      {/* ── Agent Status ─────────────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.35 }}
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
         className="mb-8"
       >
         <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
@@ -262,8 +461,8 @@ export default function Dashboard() {
         <AgentStatus />
       </motion.div>
 
-      {/* ── Quick actions ────────────────────────────────────────────────── */}
-      <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.45 }}>
+      {/* ── Quick Actions ────────────────────────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
         <h2 className="text-base font-semibold text-white mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map(({ label, desc, icon: Icon, to, grad }) => (
@@ -282,6 +481,7 @@ export default function Dashboard() {
           ))}
         </div>
       </motion.div>
+
     </div>
   )
 }

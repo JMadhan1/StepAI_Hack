@@ -40,6 +40,10 @@ class ChatRequest(BaseModel):
     history: list[dict] = []
     topics: list[str] = []
 
+class ConceptMapRequest(BaseModel):
+    topics: list[str]
+    filename: str = ""
+
 from agents.research_agent import run_research_agent
 from agents.quiz_agent import run_quiz_agent
 from agents.planner_agent import run_planner_agent
@@ -427,6 +431,68 @@ async def stream_chat(request: ChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/concept-map")
+async def generate_concept_map(request: ConceptMapRequest):
+    """Generate a concept map of topic relationships for visual display."""
+    if not request.topics or len(request.topics) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 topics required.")
+
+    topics_str = "\n".join(f"- {t}" for t in request.topics)
+
+    prompt = f"""You are an expert educator creating a concept map.
+
+Topics from the study material:
+{topics_str}
+
+Create a concept map showing how these topics connect and relate to each other.
+
+Return a JSON object with exactly these fields:
+- nodes: array of objects, each with:
+  - "id": the topic name (exactly as listed above)
+  - "type": one of "core", "concept", "application", "theory"
+- edges: array of 4-8 objects, each with:
+  - "from": a topic id from nodes
+  - "to": a different topic id from nodes
+  - "relation": 2-3 word relationship label (e.g. "leads to", "requires", "part of", "builds on", "applies to", "extends")
+
+Every topic must appear as a node exactly once. No duplicate edges.
+Return ONLY valid JSON, no markdown or explanation."""
+
+    try:
+        response = _get_groq().chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=700,
+        )
+        raw = response.choices[0].message.content.strip()
+        if "```" in raw:
+            for part in raw.split("```"):
+                part = part.strip().lstrip("json").strip()
+                if part.startswith("{"):
+                    raw = part
+                    break
+        data = json.loads(raw)
+        node_ids = {n["id"] for n in data.get("nodes", [])}
+        valid_edges = [
+            e for e in data.get("edges", [])
+            if e.get("from") in node_ids and e.get("to") in node_ids
+            and e.get("from") != e.get("to")
+        ]
+        return {"nodes": data.get("nodes", []), "edges": valid_edges}
+    except Exception as e:
+        print(f"Concept map error: {e}")
+        nodes = [
+            {"id": t, "type": "core" if i == 0 else "concept"}
+            for i, t in enumerate(request.topics)
+        ]
+        edges = [
+            {"from": request.topics[0], "to": t, "relation": "related to"}
+            for t in request.topics[1:min(6, len(request.topics))]
+        ]
+        return {"nodes": nodes, "edges": edges}
 
 
 @app.get("/weak-areas")
