@@ -116,9 +116,7 @@ export default function Dashboard() {
       console.log('[UPLOAD] API URL:', `${API}/upload`)
       const form = new FormData()
       form.append('file', file)
-      const res = await axios.post(`${API}/upload`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const res = await axios.post(`${API}/upload`, form)
       console.log('[UPLOAD] Success:', res.data)
       const topics = res.data.topics || []
       setUploadedTopics(topics)
