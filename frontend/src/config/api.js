@@ -1,8 +1,6 @@
 // Central API base URL
-// - In monorepo deployment (same domain), use relative /api
-// - In separate deployment, use VITE_API_URL env var
+// - Production backend: https://eduaiagent.vercel.app/
 // - Local dev falls back to localhost:8000
-const isSameOrigin = !import.meta.env.VITE_API_URL && typeof window !== 'undefined'
-const API = import.meta.env.VITE_API_URL || (isSameOrigin ? '/api' : 'http://localhost:8000')
+const API = import.meta.env.VITE_API_URL || 'https://eduaiagent.vercel.app/'
 
 export default API
