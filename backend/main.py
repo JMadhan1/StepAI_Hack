@@ -72,8 +72,7 @@ if _extra:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_base_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",  # all Vercel preview + prod URLs
+    allow_origins=["*"],  # Allow all origins for now - restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
