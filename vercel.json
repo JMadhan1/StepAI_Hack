@@ -1,15 +1,9 @@
 {
-  "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/backend/api/index"
-    }
+    { "source": "/(.*)", "destination": "/api/index" }
   ],
   "functions": {
-    "backend/api/index.py": {
+    "api/index.py": {
       "maxDuration": 30
     }
   }
