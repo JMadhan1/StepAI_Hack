@@ -24,10 +24,12 @@ const STAT_CONFIG = [
 ]
 
 const QUICK_ACTIONS = [
-  { label: 'Generate Study Plan', desc: 'AI-powered day-by-day schedule',      icon: BookOpen,      to: '/study-plan', grad: 'from-violet-600 to-purple-700' },
-  { label: 'Start Quiz',          desc: 'Adaptive MCQs with AI explanations',  icon: Brain,         to: '/quiz',       grad: 'from-cyan-500 to-blue-700'     },
-  { label: 'Exam Mode',           desc: 'Timed full exam — test your limits',   icon: ClipboardList, to: '/exam',       grad: 'from-red-600 to-rose-700'      },
-  { label: 'AI Flashcards',       desc: 'Spaced repetition for max retention', icon: Layers,        to: '/flashcards', grad: 'from-indigo-500 to-violet-700' },
+  { label: 'Study Plan',  desc: 'Day-by-day AI schedule',       icon: BookOpen,      to: '/study-plan', grad: 'from-violet-500 to-purple-700',  glow: 'rgba(124,58,237,0.5)',  emoji: '📅', badge: 'Plan' },
+  { label: 'Take Quiz',   desc: 'Test yourself right now',      icon: Brain,         to: '/quiz',       grad: 'from-cyan-400 to-blue-600',      glow: 'rgba(6,182,212,0.5)',   emoji: '🎯', badge: 'Quiz' },
+  { label: 'Exam Mode',   desc: 'Timed exam simulation',        icon: ClipboardList, to: '/exam',       grad: 'from-red-500 to-rose-700',       glow: 'rgba(239,68,68,0.5)',   emoji: '⏱️', badge: 'Hot' },
+  { label: 'Flashcards',  desc: 'Spaced repetition cards',      icon: Layers,        to: '/flashcards', grad: 'from-indigo-400 to-violet-700',  glow: 'rgba(99,102,241,0.5)',  emoji: '🃏', badge: 'New' },
+  { label: 'Study Notes', desc: 'AI-written complete notes',    icon: BookMarked,    to: '/notes',      grad: 'from-green-500 to-emerald-700',  glow: 'rgba(34,197,94,0.5)',   emoji: '📝', badge: 'AI'  },
+  { label: 'Doubt Solver',desc: 'Ask anything, voice or text',  icon: TrendingUp,    to: '/doubt',      grad: 'from-pink-500 to-rose-600',      glow: 'rgba(236,72,153,0.5)',  emoji: '🤔', badge: 'Voice'},
 ]
 
 const ONBOARDING_STEPS = [
@@ -470,21 +472,76 @@ export default function Dashboard() {
 
       {/* ── Quick Actions ────────────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-        <h2 className="text-base font-semibold text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {QUICK_ACTIONS.map(({ label, desc, icon: Icon, to, grad }) => (
-            <button
+        <div className="flex items-center gap-3 mb-5">
+          <h2 className="text-base font-bold text-white">Jump In</h2>
+          <motion.span
+            className="text-lg"
+            animate={{ rotate: [0, 20, -20, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >👇</motion.span>
+          <span className="tag tag-purple text-xs">Pick any feature</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {QUICK_ACTIONS.map(({ label, desc, icon: Icon, to, grad, glow, emoji, badge }, i) => (
+            <motion.button
               key={to}
               onClick={() => navigate(to)}
-              className="glass-card shimmer p-5 text-left hover:scale-[1.04] transition-all duration-200 group"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * i }}
+              whileHover={{ scale: 1.05, y: -4 }}
+              whileTap={{ scale: 0.96 }}
+              className="relative rounded-2xl p-5 text-left overflow-hidden group"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                transition: 'all 0.25s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.boxShadow = `0 8px 32px ${glow}, 0 0 0 1px ${glow}`
+                e.currentTarget.style.borderColor = glow
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+              }}
             >
-              <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${grad} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
-                <Icon size={17} className="text-white" />
+              {/* Hover gradient bg */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-0 group-hover:opacity-15 transition-opacity duration-300 rounded-2xl`} />
+
+              {/* Badge */}
+              <div className="absolute top-3 right-3">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: `${glow.replace('0.5', '0.2')}`, color: 'white', border: `1px solid ${glow}` }}>
+                  {badge}
+                </span>
               </div>
-              <p className="text-white font-semibold text-sm leading-snug">{label}</p>
-              <p className="text-slate-500 text-xs mt-1 leading-relaxed">{desc}</p>
-              <ChevronRight size={13} className="text-purple-400 mt-3 group-hover:translate-x-1 transition-transform" />
-            </button>
+
+              <div className="relative z-10">
+                {/* Icon + emoji */}
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${grad} flex items-center justify-center shadow-lg`}
+                    style={{ boxShadow: `0 4px 20px ${glow}` }}
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 2, delay: i * 0.3, repeat: Infinity }}
+                  >
+                    <Icon size={20} className="text-white" />
+                  </motion.div>
+                  <span className="text-2xl">{emoji}</span>
+                </div>
+
+                <p className="text-white font-bold text-sm leading-snug mb-1">{label}</p>
+                <p className="text-slate-400 text-xs leading-relaxed">{desc}</p>
+
+                {/* Arrow */}
+                <div className="flex items-center gap-1 mt-3">
+                  <span className="text-xs font-semibold" style={{ color: glow.replace('0.5', '1') }}>
+                    Open →
+                  </span>
+                </div>
+              </div>
+            </motion.button>
           ))}
         </div>
       </motion.div>
