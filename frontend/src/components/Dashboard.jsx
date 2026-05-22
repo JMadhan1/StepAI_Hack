@@ -113,9 +113,13 @@ export default function Dashboard() {
     setAgent('research', 'active'); setAgent('planner', 'active')
 
     try {
+      console.log('[UPLOAD] API URL:', `${API}/upload`)
       const form = new FormData()
       form.append('file', file)
-      const res = await axios.post(`${API}/upload`, form)
+      const res = await axios.post(`${API}/upload`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      console.log('[UPLOAD] Success:', res.data)
       const topics = res.data.topics || []
       setUploadedTopics(topics)
       if (res.data.summary) setDocSummary(res.data.summary)
@@ -131,7 +135,12 @@ export default function Dashboard() {
           .finally(() => setCmLoading(false))
       }
     } catch (err) {
-      setUploadError(err.response?.data?.detail || 'Upload failed. Make sure the backend is running.')
+      console.error('[UPLOAD] Full error:', err)
+      console.error('[UPLOAD] Error response:', err.response)
+      console.error('[UPLOAD] Error message:', err.message)
+      console.error('[UPLOAD] Error code:', err.code)
+      const detail = err.response?.data?.detail || err.message || 'Upload failed. Make sure the backend is running.'
+      setUploadError(detail)
     } finally {
       setUploading(false); setAgent('research', 'idle'); setAgent('planner', 'idle')
     }
