@@ -78,6 +78,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Explicit CORS preflight for all routes
+@app.options("/{full_path:path}")
+async def preflight_handler(full_path: str):
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 
 _groq_instance = None
 
