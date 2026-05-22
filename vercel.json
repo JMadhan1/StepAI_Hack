@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/api/index.py"
+      "destination": "/api/index.py"
     }
   ],
   "functions": {
-    "backend/api/index.py": {
+    "api/index.py": {
       "maxDuration": 30
     }
   }
