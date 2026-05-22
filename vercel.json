@@ -1,16 +1,15 @@
 {
   "version": 2,
-  "framework": "vite",
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "source": "/(.*)",
+      "destination": "/backend/api/index"
     }
   ],
   "functions": {
-    "api/index.py": {
+    "backend/api/index.py": {
       "maxDuration": 30
     }
   }
